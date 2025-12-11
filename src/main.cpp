@@ -7,6 +7,9 @@ const int redLight = A0;
 const int yellowLight = A1;
 const int greenLight = A2;
 
+// threshold-based per-light status
+const int threshold = 500;
+
 WiFiServer server(80);
 
 void setup() {
@@ -71,14 +74,24 @@ void loop() {
 	int yellowValue = analogRead(yellowLight);
 	int greenValue = analogRead(greenLight);
 
-	// determine current status
-	String status;
-	if (greenValue > yellowValue && greenValue > redValue)
-		status = "Green ON";
-	else if (yellowValue > greenValue && yellowValue > redValue)
-		status = "Yellow ON";
-	else
-		status = "Red ON";
+	bool redOn = redValue > threshold;
+	bool yellowOn = yellowValue > threshold;
+	bool greenOn = greenValue > threshold;
+
+	String redStat = redOn ? "ON" : "OFF";
+	String yellowStat = yellowOn ? "ON" : "OFF";
+	String greenStat = greenOn ? "ON" : "OFF";
+
+	String status = "";
+	if (!redOn && !yellowOn && !greenOn) {
+		status = "no light ON";
+	} else {
+		bool first = true;
+		if (redOn) { if (!first) status += "+"; status += "Red"; first = false; }
+		if (yellowOn) { if (!first) status += "+"; status += "Yellow"; first = false; }
+		if (greenOn) { if (!first) status += "+"; status += "Green"; first = false; }
+		status += " ON";
+	}
 
 	// ---------- DO NOT PRINT ANYTHING TO SERIAL HERE ----------
 	// Serial printing during HTTP response causes corruption.
@@ -92,7 +105,10 @@ void loop() {
 		client.print(redValue); client.print(",");
 		client.print(yellowValue); client.print(",");
 		client.print(greenValue); client.print(",");
-		client.println(status);
+		client.print(status); client.print(",");
+		client.print(redStat); client.print(",");
+		client.print(yellowStat); client.print(",");
+		client.println(greenStat);
 		client.flush();
 		client.stop();
 		return;
