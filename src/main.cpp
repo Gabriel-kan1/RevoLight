@@ -19,37 +19,51 @@ void setup() {
 	pinMode(yellowLight, INPUT);
 	pinMode(greenLight, INPUT);
 
-	Serial.println("Connecting to WiFi...");
+	Serial.println("\nConnecting to WiFi...");
 	WiFi.begin(ssid, password);
 
+	// Wait for connection with IP assignment (up to 10s)
 	unsigned long startTime = millis();
-	while (WiFi.status() != WL_CONNECTED) {
-		delay(500);
-		Serial.print(".");
-		if (millis() - startTime > 20000) {
-			Serial.println("\nFailed to connect within 20s");
-			break;
+	while (millis() - startTime < 10000) {
+		if (WiFi.status() == WL_CONNECTED) {
+			IPAddress ip = WiFi.localIP();
+			// Check if IP is valid (not 0.0.0.0)
+			if (ip != INADDR_NONE && ip[0] != 0) {
+				break; // Valid IP obtained
+			}
 		}
+		delay(250);
+		Serial.print(".");
 	}
 
 	delay(500);
 	if (WiFi.status() == WL_CONNECTED) {
-		Serial.println("Connected! IP: ");
-		Serial.println(WiFi.localIP());
-		server.begin();
+		IPAddress ip = WiFi.localIP();
+		if (ip != INADDR_NONE && ip[0] != 0) {
+			Serial.println("\nConnected! IP: ");
+			Serial.println(ip);
+			server.begin();
+		} else {
+			Serial.println("\nConnected but IP not assigned yet");
+		}
 	} else {
-		Serial.println("WiFi connection failed!");
+		Serial.println("\nNot connected — will reconnect in background");
 	}
 }
 
 void loop() {
-	// Check WiFi connection status periodically
+	// Check WiFi connection status periodically and start server when ready
 	static unsigned long lastCheck = 0;
-	if (millis() - lastCheck > 5000) {
+	static bool serverStarted = false;
+	if (millis() - lastCheck > 3000) {
 		lastCheck = millis();
 		if (WiFi.status() != WL_CONNECTED) {
-			Serial.println("WiFi disconnected! Reconnecting...");
+			Serial.println("WiFi not ready — attempting reconnect...");
 			WiFi.begin(ssid, password);
+			serverStarted = false; // Reset on disconnect
+		} else if (!serverStarted) {
+			server.begin();
+			serverStarted = true;
 		}
 	}
 
@@ -67,8 +81,33 @@ void loop() {
 		delay(1);
 	}
 
-	String req = client.readStringUntil('\r');
-	client.flush();
+	// Read full request headers to avoid socket corruption
+	String header = "";
+	unsigned long hdrStart = millis();
+	while (client.connected() && millis() - hdrStart < timeout) {
+		String line = client.readStringUntil('\n');
+		if (line.length() <= 1) break; // blank line = end of headers
+		header += line;
+	}
+
+	// Extract path from first request line
+	String path = "/";
+	int crPos = header.indexOf('\r');
+	if (crPos != -1) {
+		String firstLine = header.substring(0, crPos);
+		int p1 = firstLine.indexOf(' ');
+		int p2 = firstLine.indexOf(' ', p1 + 1);
+		if (p1 != -1 && p2 != -1) path = firstLine.substring(p1 + 1, p2);
+	}
+
+	// Quickly handle favicon requests
+	if (path == "/favicon.ico") {
+		client.println("HTTP/1.1 204 No Content");
+		client.println("Connection: close");
+		client.println();
+		client.stop();
+		return;
+	}
 
 	int redValue = analogRead(redLight);
 	int yellowValue = analogRead(yellowLight);
@@ -96,7 +135,7 @@ void loop() {
 	// ---------- DO NOT PRINT ANYTHING TO SERIAL HERE ----------
 	// Serial printing during HTTP response causes corruption.
 
-	if (req.indexOf("/adc") != -1) {
+	if (path == "/adc") {
 		client.println("HTTP/1.1 200 OK");
 		client.println("Content-Type: text/plain");
 		client.println("Connection: close");
@@ -152,15 +191,15 @@ void loop() {
 	client.println("if(r.ok){document.getElementById('conn').innerText='Connected';retries=0;}");
 	client.println("return r.text();}).then(data=>{");
 	client.println("let p=data.split(',');let r=parseInt(p[0]),y=parseInt(p[1]),g=parseInt(p[2]);");
-	client.println("document.getElementById('red').innerText=p[0];");
+	client.println("document.getElementById('red').innerText=p[0]+' ('+p[4]+')';");
 	client.println("document.getElementById('red-bar').style.width=(r/1023*100)+'%';");
-	client.println("document.getElementById('yellow').innerText=p[1];");
+	client.println("document.getElementById('yellow').innerText=p[1]+' ('+p[5]+')';");
 	client.println("document.getElementById('yellow-bar').style.width=(y/1023*100)+'%';");
-	client.println("document.getElementById('green').innerText=p[2];");
+	client.println("document.getElementById('green').innerText=p[2]+' ('+p[6]+')';");
 	client.println("document.getElementById('green-bar').style.width=(g/1023*100)+'%';");
-	client.println("document.getElementById('status').innerText=p[3];");
+	client.println("document.getElementById('status').innerText=p[3].replace(/\\+/g, ', ');");
 	client.println("}).catch(e=>{retries++;");
 	client.println("document.getElementById('conn').innerText='Reconnecting... ('+retries+')';});}");
-	client.println("setInterval(fetchData,200);fetchData();");
+	client.println("setInterval(fetchData,500);fetchData();");
 	client.println("</script></body></html>");
 }
