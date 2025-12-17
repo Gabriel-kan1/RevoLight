@@ -1,14 +1,27 @@
-#include <WiFiS3.h>
+#include "secrets.h"
 
-const char* ssid = "Revotech_2.4G";
-const char* password = "16188075";
+//#define TARGET_BOARD_ESP32
+#define TARGET_BOARD_UNO_R4
 
-const int redLight = A0;
-const int yellowLight = A1;
-const int greenLight = A2;
+#if defined(TARGET_BOARD_UNO_R4)
+  #include <WiFiS3.h>
+  const int redLight    = A0;
+  const int yellowLight = A1;
+  const int greenLight  = A2;
+  const int ADC_MAX     = 1023;
+  const int threshold  = 600;
 
-// threshold-based per-light status
-const int threshold = 500;
+#elif defined(TARGET_BOARD_ESP32)
+  #include <WiFi.h>
+  const int redLight    = 34;
+  const int yellowLight = 35;
+  const int greenLight  = 32;
+  const int ADC_MAX     = 4095;
+  const int threshold  = 2400;
+
+#else
+  #error "No supported TARGET_BOARD defined"
+#endif
 
 WiFiServer server(80);
 
@@ -147,7 +160,8 @@ void loop() {
 		client.print(status); client.print(",");
 		client.print(redStat); client.print(",");
 		client.print(yellowStat); client.print(",");
-		client.println(greenStat);
+		client.print(greenStat); client.print(",");
+		client.println(ADC_MAX);
 		client.flush();
 		client.stop();
 		return;
@@ -172,15 +186,15 @@ void loop() {
 	client.println("</style></head><body>");
 	client.println("<h2>Traffic Light ADC Monitor</h2>");
 	client.println("<div class='light red-light'>");
-	client.println("<p>Red: <span id='red'>0</span>/1023</p>");
+	client.println("<p>Red: <span id='red'>0</span></p>");
 	client.println("<div class='bar'><div class='fill' id='red-bar' style='width:0%'></div></div>");
 	client.println("</div>");
 	client.println("<div class='light yellow-light'>");
-	client.println("<p>Yellow: <span id='yellow'>0</span>/1023</p>");
+	client.println("<p>Yellow: <span id='yellow'>0</span></p>");
 	client.println("<div class='bar'><div class='fill' id='yellow-bar' style='width:0%'></div></div>");
 	client.println("</div>");
 	client.println("<div class='light green-light'>");
-	client.println("<p>Green: <span id='green'>0</span>/1023</p>");
+	client.println("<p>Green: <span id='green'>0</span></p>");
 	client.println("<div class='bar'><div class='fill' id='green-bar' style='width:0%'></div></div>");
 	client.println("</div>");
 	client.println("<div class='status' id='status'>--</div>");
@@ -190,13 +204,13 @@ void loop() {
 	client.println("function fetchData(){fetch('/adc').then(r=>{");
 	client.println("if(r.ok){document.getElementById('conn').innerText='Connected';retries=0;}");
 	client.println("return r.text();}).then(data=>{");
-	client.println("let p=data.split(',');let r=parseInt(p[0]),y=parseInt(p[1]),g=parseInt(p[2]);");
-	client.println("document.getElementById('red').innerText=p[0]+' ('+p[4]+')';");
-	client.println("document.getElementById('red-bar').style.width=(r/1023*100)+'%';");
-	client.println("document.getElementById('yellow').innerText=p[1]+' ('+p[5]+')';");
-	client.println("document.getElementById('yellow-bar').style.width=(y/1023*100)+'%';");
-	client.println("document.getElementById('green').innerText=p[2]+' ('+p[6]+')';");
-	client.println("document.getElementById('green-bar').style.width=(g/1023*100)+'%';");
+	client.println("let p=data.split(',');let r=parseInt(p[0]),y=parseInt(p[1]),g=parseInt(p[2]),max=parseInt(p[7]);");
+	client.println("document.getElementById('red').innerText=r+' ('+p[4]+') / '+r+'/'+max;");
+	client.println("document.getElementById('red-bar').style.width=(r/max*100)+'%';");
+	client.println("document.getElementById('yellow').innerText=y+' ('+p[5]+') / '+y+'/'+max;");
+	client.println("document.getElementById('yellow-bar').style.width=(y/max*100)+'%';");
+	client.println("document.getElementById('green').innerText=g+' ('+p[6]+') / '+g+'/'+max;");
+	client.println("document.getElementById('green-bar').style.width=(g/max*100)+'%';");
 	client.println("document.getElementById('status').innerText=p[3].replace(/\\+/g, ', ');");
 	client.println("}).catch(e=>{retries++;");
 	client.println("document.getElementById('conn').innerText='Reconnecting... ('+retries+')';});}");
