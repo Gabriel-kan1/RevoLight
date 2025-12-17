@@ -1,7 +1,8 @@
 #include "secrets.h"
 
-//#define TARGET_BOARD_ESP32
-#define TARGET_BOARD_UNO_R4
+// Select your target board (uncomment one, comment the other):
+#define TARGET_BOARD_ESP32
+//#define TARGET_BOARD_UNO_R4define 
 
 #if defined(TARGET_BOARD_UNO_R4)
   #include <WiFiS3.h>
@@ -9,7 +10,7 @@
   const int yellowLight = A1;
   const int greenLight  = A2;
   const int ADC_MAX     = 1023;
-  const int threshold  = 600;
+  const int threshold  = 800;
 
 #elif defined(TARGET_BOARD_ESP32)
   #include <WiFi.h>
@@ -17,7 +18,7 @@
   const int yellowLight = 35;
   const int greenLight  = 32;
   const int ADC_MAX     = 4095;
-  const int threshold  = 2400;
+  const int threshold  = 3800;
 
 #else
   #error "No supported TARGET_BOARD defined"
