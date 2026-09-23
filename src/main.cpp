@@ -1,28 +1,15 @@
 #include "secrets.h"
+#include <WiFi.h>
 
-// Select your target board (uncomment one, comment the other):
-#define TARGET_BOARD_ESP32
-//#define TARGET_BOARD_UNO_R4define 
+const int redLight    = 34;
+const int yellowLight = 35;
+const int greenLight  = 32;
+const int ADC_MAX     = 4095;
+const int threshold   = 3800;
 
-#if defined(TARGET_BOARD_UNO_R4)
-  #include <WiFiS3.h>
-  const int redLight    = A0;
-  const int yellowLight = A1;
-  const int greenLight  = A2;
-  const int ADC_MAX     = 1023;
-  const int threshold  = 800;
-
-#elif defined(TARGET_BOARD_ESP32)
-  #include <WiFi.h>
-  const int redLight    = 34;
-  const int yellowLight = 35;
-  const int greenLight  = 32;
-  const int ADC_MAX     = 4095;
-  const int threshold  = 3800;
-
-#else
-  #error "No supported TARGET_BOARD defined"
-#endif
+bool redOn;
+bool yellowOn;
+bool greenOn;
 
 WiFiServer server(80);
 
@@ -127,9 +114,9 @@ void loop() {
 	int yellowValue = analogRead(yellowLight);
 	int greenValue = analogRead(greenLight);
 
-	bool redOn = redValue > threshold;
-	bool yellowOn = yellowValue > threshold;
-	bool greenOn = greenValue > threshold;
+	redOn = redValue > threshold;
+	yellowOn = yellowValue > threshold;
+	greenOn = greenValue > threshold;
 
 	String redStat = redOn ? "ON" : "OFF";
 	String yellowStat = yellowOn ? "ON" : "OFF";
